@@ -559,6 +559,12 @@ class BerdyHelper
      */
     LinkPositions world_H_links;
 
+    /*
+     * comPosition variable containing the center of mass position
+     *
+     */
+    iDynTree::Position m_comPosition;
+
 
 public:
     /**
@@ -648,6 +654,11 @@ public:
      * Get the number of sensors measurements.
      */
     size_t getNrOfSensorsMeasurements(const bool& task1) const;
+
+    /**
+     * Set center of mass position
+     */
+    void setCoMPosition(iDynTree::Position & comPos);
 
     /**
      * Resize and set to zero Berdy matrices. - new method

@@ -185,6 +185,9 @@ bool BerdyHelper::init(const Model& model,
     // Initialize links to base transform to identity
     world_H_links.resize(m_model.getNrOfLinks());
 
+    // Initialize com position
+    m_comPosition = iDynTree::Position::Zero();
+
     bool res = m_options.checkConsistency();
 
     if( !res )
@@ -1245,6 +1248,7 @@ bool BerdyHelper::computeTask1SensorMatrices(SparseMatrix<iDynTree::ColumnMajor>
     task1_bY.resize(m_task1_nrOfSensorsMeasurements);
 
     task1_matrixYElements.clear();
+
     task1_bY.zero();
 
     // The task1_Y matrix contains rows equal to the number of NET_EXT_WRENCH_SENSOR sensors plus 3 rows for the COM_ACCELEROMETER_SENSOR
@@ -1307,11 +1311,35 @@ bool BerdyHelper::computeTask1SensorMatrices(SparseMatrix<iDynTree::ColumnMajor>
         }
 
 
-        // bY for the com acceleration sensor is zero
+        // bY for the centroidal dynamics constraint is set to gravity vector expressed in base frame
+        // Set task1 bias vector with gravitational wrench expressed in base
+        // Set centroidal to world transform
+        iDynTree::Transform world_H_centroidal = iDynTree::Transform::Identity();
+
+        // TODO: Set center of mass position from front end
+        world_H_centroidal.setPosition(m_comPosition);
+
+        // base_H_centroidal transform
+        const iDynTree::Transform base_H_centroidal = world_H_links(m_dynamicsTraversal.getBaseLink()->getIndex()).inverse() * world_H_centroidal;
+
+        iDynTree::Vector6  gravitationalWrenchInCentroidal;
+        gravitationalWrenchInCentroidal.zero();
+        gravitationalWrenchInCentroidal.setVal(2, m_model.getTotalMass() * m_gravity6D.getVal(2));
+
+        iDynTree::Vector6  gravitationalWrenchInBase;
+        gravitationalWrenchInBase.zero();
+        iDynTree::toEigen(gravitationalWrenchInBase) = iDynTree::toEigen(base_H_centroidal.asAdjointTransformWrench()) * iDynTree::toEigen(gravitationalWrenchInCentroidal);
+
+        iDynTree::toEigen(task1_bY).bottomRows<6>() = iDynTree::toEigen(gravitationalWrenchInBase);
     }
 
     task1_Y.setFromTriplets(task1_matrixYElements);
     return true;
+}
+
+void BerdyHelper::setCoMPosition(iDynTree::Position &comPos)
+{
+    m_comPosition = comPos;
 }
 
 bool BerdyHelper::computeBerdySensorMatrices(SparseMatrix<iDynTree::ColumnMajor>& Y, VectorDynSize& bY)
